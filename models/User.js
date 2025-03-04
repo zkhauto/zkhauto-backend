@@ -1,15 +1,23 @@
 import mongoose from "mongoose";
+import bcrypt from "bcryptjs";
 
 const userSchema = new mongoose.Schema({
   googleId: {
     type: String,
-    required: true,
-    unique: true,
+    required: false,
+    unique: false,
+    sparse: true,
   },
   email: {
     type: String,
     required: true,
     unique: true,
+  },
+  password: {
+    type: String,
+    required: function () {
+      return !this.googleId;
+    },
   },
   displayName: {
     type: String,
@@ -28,6 +36,33 @@ const userSchema = new mongoose.Schema({
     default: Date.now,
   },
 });
+
+userSchema.pre("save", function (next) {
+  if (!this.googleId || this.googleId === null) {
+    delete this.googleId;
+  }
+  next();
+});
+
+userSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) return next();
+
+  try {
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
+userSchema.methods.comparePassword = async function (candidatePassword) {
+  try {
+    return await bcrypt.compare(candidatePassword, this.password);
+  } catch (error) {
+    throw error;
+  }
+};
 
 const User = mongoose.model("User", userSchema);
 
