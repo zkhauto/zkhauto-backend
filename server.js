@@ -1,13 +1,14 @@
 import dotenv from "dotenv";
 dotenv.config(); // Load .env variables before anything else
 
-import express from "express";
-import cors from "cors";
-import session from "express-session";
-import passport from "./config/passport.js";
 import MongoStore from "connect-mongo";
+import cors from "cors";
+import express from "express";
+import session from "express-session";
 import connectDB from "./config/db.js";
+import passport from "./config/passport.js";
 import authRoutes from "./routes/auth.js";
+import bookingRoutes from "./routes/bookingRoutes.js";
 
 const app = express();
 
@@ -80,6 +81,9 @@ const isAdmin = (req, res, next) => {
 
 // Mount authentication routes
 app.use("/auth", authRoutes);
+
+// Mount booking routes
+app.use("/api", bookingRoutes);
 
 // Protected route example
 app.get("/api/profile", isAuthenticated, (req, res) => {
