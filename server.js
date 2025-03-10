@@ -7,7 +7,7 @@ import express from "express";
 import session from "express-session";
 import connectDB from "./config/db.js";
 import passport from "./config/passport.js";
-import authRoutes from "./routes/auth.js";
+import userRoutes from "./routes/userRoutes.js";
 import bookingRoutes from "./routes/bookingRoutes.js";
 
 const app = express();
@@ -80,7 +80,7 @@ const isAdmin = (req, res, next) => {
 };
 
 // Mount authentication routes
-app.use("/auth", authRoutes);
+app.use("/users", userRoutes);
 
 // Mount booking routes
 app.use("/api", bookingRoutes);
