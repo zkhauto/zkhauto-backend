@@ -1,11 +1,11 @@
-import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
+import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema({
   googleId: {
     type: String,
     required: false,
-    unique: false,
+    unique: true,
     sparse: true,
   },
   email: {
@@ -43,6 +43,12 @@ userSchema.pre("save", function (next) {
   }
   next();
 });
+// userSchema.pre("validate", function (next) {
+//   if (!this.googleId) {
+//     this.googleId = undefined; // This prevents MongoDB from storing `null`
+//   }
+//   next();
+// });
 
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
