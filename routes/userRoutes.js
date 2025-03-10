@@ -76,26 +76,45 @@ router.post("/signup", async (req, res) => {
 });
 
 //update user to admin
-router.put("/admin", async (req, res) => {
-  const { email } = req.body;
+router.put("/update", async (req, res) => {
+  const { email, role } = req.body;
 
   try {
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
-    user.role = "admin";
+    user.role = role;
     await user.save();
-    res.status(200).json({ message: "User updated to admin" });
+    res.status(200).json({ message: `User role updated to ${role}` });
   } catch (error) {
-    console.error("Update to admin error:", error);
+    console.error("Update user role error:", error);
     res
       .status(500)
-      .json({ message: "Error updating to admin", error: error.message });
+      .json({ message: "Error updating user role", error: error.message });
   }
 });
-//usage example: http://localhost:5000/users/admin
-//body: { email: "test@test.com" }
+
+//update password or insert new password
+router.put("/update-password", async (req, res) => {
+  const { email, password } = req.body;
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    user.password = password;
+    await user.save();
+    res.status(200).json({ message: "Password updated successfully" });
+  } catch (error) {
+    console.error("Update password error:", error);
+    res
+      .status(500)
+      .json({ message: "Error updating password", error: error.message });
+  }
+});
+//usage example: http://localhost:5000/users/update-password
+//body: { email: "test@test.com", password: "newpassword" }
 
 // delete user
 router.delete("/delete", async (req, res) => {
