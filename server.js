@@ -20,7 +20,7 @@ app.use(
   cors({
     origin: process.env.FRONTEND_URL || "http://localhost:3000",
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "Accept"],
   })
 );
@@ -32,7 +32,10 @@ app.use((req, res, next) => {
     "Access-Control-Allow-Origin",
     process.env.FRONTEND_URL || "http://localhost:3000"
   );
-  res.header("Access-Control-Allow-Methods", "GET,PUT,POST,DELETE,OPTIONS");
+  res.header(
+    "Access-Control-Allow-Methods",
+    "GET,PUT,POST,PATCH,DELETE,OPTIONS"
+  );
   res.header(
     "Access-Control-Allow-Headers",
     "Content-Type, Authorization, Accept"
