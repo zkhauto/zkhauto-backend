@@ -23,7 +23,7 @@ const router = express.Router();
 //       .json({ error: "Failed to create booking", message: error.message });
 //   }
 // });
-router.post("/test-drives", async (req, res) => {
+router.post("/test-drive", async (req, res) => {
   try {
     const { name, email, phone, date, time, carModel, notes } = req.body;
     const testDrive = new Booking({
@@ -66,6 +66,18 @@ router.put("/test-drives/:id/status", async (req, res) => {
     res.status(200).json(updatedTestDrive);
   } catch (error) {
     res.status(500).json({ message: "Error updating test drive status" });
+  }
+});
+
+// Delete a test drive (for admin)
+router.delete("/test-drives/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log("id", id);
+    await Booking.findByIdAndDelete(id);
+    res.status(200).json({ message: "Test drive deleted" });
+  } catch (error) {
+    res.status(500).json({ message: "Error deleting test drive" });
   }
 });
 

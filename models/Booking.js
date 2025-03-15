@@ -16,8 +16,8 @@ import mongoose from "mongoose";
 // export default Booking;
 
 const testDriveSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  email: { type: String, required: true },
+  name: { type: String, required: false },
+  email: { type: String, required: false },
   phone: { type: String, required: true },
   date: { type: String, required: true },
   time: { type: String, required: true },
