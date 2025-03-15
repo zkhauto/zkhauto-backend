@@ -9,6 +9,7 @@ import connectDB from "./config/db.js";
 import passport from "./config/passport.js";
 import userRoutes from "./routes/userRoutes.js";
 import bookingRoutes from "./routes/bookingRoutes.js";
+import carRoutes from "./routes/carRoutes.js";
 
 const app = express();
 
@@ -87,6 +88,9 @@ app.use("/users", userRoutes);
 
 // Mount booking routes
 app.use("/api", bookingRoutes);
+
+// Mount car routes
+app.use("/api", carRoutes);
 
 // Protected route example
 app.get("/api/profile", isAuthenticated, (req, res) => {
