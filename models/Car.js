@@ -1,5 +1,21 @@
 import mongoose from "mongoose";
 
+const imageSchema = new mongoose.Schema({
+  url: {
+    type: String,
+    get: function() {
+      const brand = this.parent().brand.toLowerCase();
+      const model = this.parent().model.toLowerCase().replace(/\s+/g, '-');
+      const index = this.parent().images.indexOf(this) + 1;
+      return `https://storage.googleapis.com/zkhauto_bucket/car-images/${brand}/${brand}-${model}-${index}.jpg`;
+    }
+  },
+  exists: {
+    type: Boolean,
+    default: false
+  }
+});
+
 const carSchema = new mongoose.Schema({
   brand: {
     type: String,
@@ -90,12 +106,7 @@ const carSchema = new mongoose.Schema({
       trim: true,
     },
   ],
-  imageUrls: [
-    {
-      type: String,
-      trim: true,
-    },
-  ],
+  images: [imageSchema],
   driveTrain: {
     type: String,
     required: true,
@@ -113,14 +124,34 @@ const carSchema = new mongoose.Schema({
     enum: ["New", "Used", "Refurbished", "Remade"],
     default: "Used",
   },
-  createdAt: {
-    type: Date,
-    default: Date.now,
+  rating: {
+    type: Number,
+    required: true,
+    min: 0,
+    max: 5,
   },
-  updatedAt: {
-    type: Date,
-    default: Date.now,
-  },
+}, {
+  timestamps: true,
+  toJSON: { getters: true },
+  toObject: { getters: true }
+});
+
+// Validate that brand matches available folders
+carSchema.path('brand').validate(function(value) {
+  const validBrands = [
+    'audi', 'bentley', 'bmw', 'ferrari', 'lamborghini', 
+    'mclaren', 'mercedes-benz', 'porsche', 'rolls-royce'
+  ];
+  return validBrands.includes(value.toLowerCase());
+}, 'Invalid car brand');
+
+// Pre-save middleware to set number of images
+carSchema.pre('save', function(next) {
+  // Most cars have 2 images
+  if (!this.images || this.images.length === 0) {
+    this.images = [{ url: '', exists: true }, { url: '', exists: true }];
+  }
+  next();
 });
 
 // Update the updatedAt timestamp before saving
