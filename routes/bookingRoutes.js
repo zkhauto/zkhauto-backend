@@ -42,4 +42,31 @@ router.post("/test-drives", async (req, res) => {
   }
 });
 
+router.get("/test-drives", async (req, res) => {
+  try {
+    const testDrives = await Booking.find();
+    res.status(200).json(testDrives);
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching test drives" });
+  }
+});
+
+// Update test drive status (for admin)
+router.put("/test-drives/:id/status", async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log("id", id);
+    const { status } = req.body;
+    console.log("status", status);
+    const updatedTestDrive = await Booking.findByIdAndUpdate(
+      id,
+      { status },
+      { new: true }
+    );
+    res.status(200).json(updatedTestDrive);
+  } catch (error) {
+    res.status(500).json({ message: "Error updating test drive status" });
+  }
+});
+
 export default router;
