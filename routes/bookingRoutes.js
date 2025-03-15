@@ -51,6 +51,16 @@ router.get("/test-drives", async (req, res) => {
   }
 });
 
+// router.get("/test-drives/:email", async (req, res) => {
+//   try {
+//     const { email } = req.params;
+//     const testDrive = await Booking.findById(email);
+//     res.status(200).json(testDrive);
+//   } catch (error) {
+//     res.status(500).json({ message: "Error fetching test drive" });
+//   }
+// });
+
 // Update test drive status (for admin)
 router.put("/test-drives/:id/status", async (req, res) => {
   try {
