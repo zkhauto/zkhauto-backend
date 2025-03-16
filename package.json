@@ -23,7 +23,8 @@
     "mongoose": "^7.6.3",
     "node-fetch": "^3.3.2",
     "passport": "^0.7.0",
-    "passport-google-oauth20": "^2.0.0"
+    "passport-google-oauth20": "^2.0.0",
+    "react-hot-toast": "^2.5.2"
   },
   "devDependencies": {
     "nodemon": "^3.1.9"

@@ -4,7 +4,7 @@ const imageSchema = new mongoose.Schema({
   url: {
     type: String,
     get: function() {
-      const brand = this.parent().brand.toLowerCase();
+      const brand = this.parent().brand.trim();
       const model = this.parent().model.toLowerCase().replace(/\s+/g, '-');
       const index = this.parent().images.indexOf(this) + 1;
       return `https://storage.googleapis.com/zkhauto_bucket/car-images/${brand}/${brand}-${model}-${index}.jpg`;
@@ -135,15 +135,6 @@ const carSchema = new mongoose.Schema({
   toJSON: { getters: true },
   toObject: { getters: true }
 });
-
-// Validate that brand matches available folders
-carSchema.path('brand').validate(function(value) {
-  const validBrands = [
-    'audi', 'bentley', 'bmw', 'ferrari', 'lamborghini', 
-    'mclaren', 'mercedes-benz', 'porsche', 'rolls-royce'
-  ];
-  return validBrands.includes(value.toLowerCase());
-}, 'Invalid car brand');
 
 // Pre-save middleware to set number of images
 carSchema.pre('save', function(next) {
