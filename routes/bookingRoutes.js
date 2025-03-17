@@ -26,17 +26,28 @@ const router = express.Router();
 router.post("/test-drive", async (req, res) => {
   try {
     const { name, email, phone, date, time, carModel, notes } = req.body;
-    const testDrive = new Booking({
-      name,
-      email,
-      phone,
+
+    const existingBooking = await Booking.findOne({
+      carModel,
       date,
       time,
-      carModel,
-      notes,
+      status: { $in: ["pending", "approved"] },
     });
-    await testDrive.save();
-    res.status(201).json(testDrive);
+    if (existingBooking) {
+      return res.status(400).json({ message: "Test drive already booked" });
+    } else {
+      const testDrive = new Booking({
+        name,
+        email,
+        phone,
+        date,
+        time,
+        carModel,
+        notes,
+      });
+      await testDrive.save();
+      res.status(201).json(testDrive);
+    }
   } catch (error) {
     res.status(500).json({ message: "Error booking test drive" });
   }
