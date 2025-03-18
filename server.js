@@ -7,9 +7,10 @@ import express from "express";
 import session from "express-session";
 import connectDB from "./config/db.js";
 import passport from "./config/passport.js";
-import userRoutes from "./routes/userRoutes.js";
 import bookingRoutes from "./routes/bookingRoutes.js";
 import carRoutes from "./routes/carRoutes.js";
+import contactRoutes from "./routes/contactRoutes.js";
+import userRoutes from "./routes/userRoutes.js";
 
 const app = express();
 
@@ -19,19 +20,19 @@ connectDB();
 // Configure CORS
 app.use(
   cors({
-    origin: ['http://localhost:3000', 'http://localhost:3001'],
+    origin: ["http://localhost:3000", "http://localhost:3001"],
     credentials: true,
   })
 );
 
 // Additional CORS headers
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin);
-  res.header('Access-Control-Allow-Credentials', true);
-  res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+  res.header("Access-Control-Allow-Origin", req.headers.origin);
+  res.header("Access-Control-Allow-Credentials", true);
+  res.header("Access-Control-Allow-Methods", "GET,PUT,POST,DELETE,OPTIONS");
   res.header(
-    'Access-Control-Allow-Headers',
-    'Origin, X-Requested-With, Content-Type, Accept, Authorization'
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
   );
   next();
 });
@@ -83,6 +84,9 @@ app.use("/api", bookingRoutes);
 
 // Mount car routes
 app.use("/api", carRoutes);
+
+//mount contact use routes
+app.use("/api", contactRoutes);
 
 // Protected route example
 app.get("/api/profile", isAuthenticated, (req, res) => {
