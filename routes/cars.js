@@ -36,23 +36,21 @@ router.get("/:id", async (req, res) => {
       images: carData.images?.map(img => ({
         url: img.url,
         exists: img.exists,
-        isValid: Boolean(img.url)
+        urlValid: Boolean(img.url && img.url.startsWith('https://storage.googleapis.com/zkhauto_bucket/'))
       }))
     });
 
-    // Ensure images array exists
-    if (!carData.images) {
+    // Ensure images array exists and has proper structure
+    if (!carData.images || !Array.isArray(carData.images)) {
       carData.images = [];
     }
 
-    // Filter out invalid images and ensure proper URL format
-    carData.images = carData.images
-      .filter(img => img && img.url)
-      .map(img => ({
-        ...img,
-        exists: Boolean(img.url),
-        url: img.url.startsWith('http') ? img.url : `https://storage.googleapis.com/zkhauto_bucket/car-images/${carData.brand.toLowerCase()}/${carData.brand.toLowerCase()}-${carData.model.toLowerCase().replace(/\s+/g, '-')}-${carData.images.indexOf(img) + 1}.jpg`
-      }));
+    // For each image, verify the URL is valid
+    carData.images = carData.images.map(img => ({
+      ...img,
+      exists: img.exists && Boolean(img.url && img.url.startsWith('https://storage.googleapis.com/zkhauto_bucket/')),
+      url: img.url && img.url.startsWith('https://storage.googleapis.com/zkhauto_bucket/') ? img.url : null
+    }));
 
     res.json(carData);
   } catch (error) {
@@ -73,18 +71,16 @@ router.get("/", async (req, res) => {
     // Process each car's images
     const processedCars = cars.map(car => {
       // Ensure images array exists
-      if (!car.images) {
+      if (!car.images || !Array.isArray(car.images)) {
         car.images = [];
       }
 
-      // Filter out invalid images and ensure proper URL format
-      car.images = car.images
-        .filter(img => img && img.url)
-        .map(img => ({
-          ...img,
-          exists: Boolean(img.url),
-          url: img.url.startsWith('http') ? img.url : `https://storage.googleapis.com/zkhauto_bucket/car-images/${car.brand.toLowerCase()}/${car.brand.toLowerCase()}-${car.model.toLowerCase().replace(/\s+/g, '-')}-${car.images.indexOf(img) + 1}.jpg`
-        }));
+      // Verify each image URL
+      car.images = car.images.map(img => ({
+        ...img,
+        exists: img.exists && Boolean(img.url && img.url.startsWith('https://storage.googleapis.com/zkhauto_bucket/')),
+        url: img.url && img.url.startsWith('https://storage.googleapis.com/zkhauto_bucket/') ? img.url : null
+      }));
 
       return car;
     });
@@ -98,7 +94,7 @@ router.get("/", async (req, res) => {
         images: car.images?.map(img => ({
           url: img.url,
           exists: img.exists,
-          isValid: Boolean(img.url)
+          urlValid: Boolean(img.url && img.url.startsWith('https://storage.googleapis.com/zkhauto_bucket/'))
         }))
       });
     });
@@ -199,6 +195,99 @@ router.delete("/bulk-delete", async (req, res) => {
     console.error("Error in bulk delete:", error);
     res.status(500).json({ 
       message: "Failed to delete cars", 
+      error: error.message 
+    });
+  }
+});
+
+// Create new car
+router.post("/", async (req, res) => {
+  try {
+    console.log("Creating new car:", req.body);
+
+    // Validate required fields
+    const requiredFields = [
+      "brand", "model", "year", "price", "type", "fuel", "mileage",
+      "color", "engineSize", "engineCylinders", "engineHorsepower",
+      "engineTransmission", "driveTrain", "description", "condition"
+    ];
+
+    const missingFields = requiredFields.filter(field => !req.body[field]);
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        message: "Missing required fields",
+        fields: missingFields
+      });
+    }
+
+    // Handle image URLs
+    let images = [];
+    if (req.body.images && Array.isArray(req.body.images)) {
+      // If images array is provided
+      console.log("Processing images array:", req.body.images);
+      images = req.body.images
+        .filter(img => img && img.url && img.url.trim() !== "" && img.url.startsWith('https://storage.googleapis.com/zkhauto_bucket/'))
+        .map(img => ({
+          url: img.url,
+          exists: true
+        }));
+    } else if (req.body.image && req.body.image.trim() !== "" && req.body.image.startsWith('https://storage.googleapis.com/zkhauto_bucket/')) {
+      // If a single image URL is provided
+      console.log("Processing single image:", req.body.image);
+      images = [{
+        url: req.body.image,
+        exists: true
+      }];
+    }
+
+    // Log the processed images
+    console.log("Processed images:", images);
+
+    // Create new car with validated data
+    const carData = {
+      ...req.body,
+      images: images,
+      rating: req.body.rating || 0
+    };
+
+    // Log the final car data
+    console.log("Creating car with data:", {
+      ...carData,
+      images: carData.images.map(img => ({
+        url: img.url,
+        exists: img.exists
+      }))
+    });
+
+    const car = new Car(carData);
+    await car.save();
+
+    console.log("Created new car:", {
+      id: car._id,
+      brand: car.brand,
+      model: car.model,
+      images: car.images.map(img => ({
+        url: img.url,
+        exists: img.exists
+      }))
+    });
+
+    res.status(201).json(car);
+  } catch (error) {
+    console.error("Error creating car:", error);
+    
+    // Handle validation errors
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({ 
+        message: "Validation failed", 
+        errors: validationErrors 
+      });
+    }
+
+    // Handle other errors
+    res.status(500).json({ 
+      message: "Failed to create car", 
       error: error.message 
     });
   }
