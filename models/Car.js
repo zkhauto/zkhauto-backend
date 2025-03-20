@@ -3,20 +3,10 @@ import mongoose from "mongoose";
 const imageSchema = new mongoose.Schema({
   url: {
     type: String,
-    required: true,
-    get: function(value) {
-      if (!value) return null;
-      
-      // If it's already a full URL, return it
-      if (value.startsWith('http')) return value;
-      
-      // Otherwise, construct the URL
-      const brand = this.parent().brand?.toLowerCase().trim() || '';
-      const model = this.parent().model?.toLowerCase().replace(/\s+/g, '-') || '';
+    get: function() {
+      const brand = this.parent().brand.trim();
+      const model = this.parent().model.toLowerCase().replace(/\s+/g, '-');
       const index = this.parent().images.indexOf(this) + 1;
-      
-      if (!brand || !model) return null;
-      
       return `https://storage.googleapis.com/zkhauto_bucket/car-images/${brand}/${brand}-${model}-${index}.jpg`;
     }
   },
@@ -146,21 +136,12 @@ const carSchema = new mongoose.Schema({
   toObject: { getters: true }
 });
 
-// Pre-save middleware to handle images
+// Pre-save middleware to set number of images
 carSchema.pre('save', function(next) {
-  // Initialize images array if it doesn't exist
-  if (!this.images) {
+  // Only set empty images if no images are provided
+  if (!this.images || this.images.length === 0) {
     this.images = [];
   }
-
-  // Ensure images is an array
-  if (!Array.isArray(this.images)) {
-    this.images = [this.images].filter(Boolean);
-  }
-
-  // Remove any invalid images
-  this.images = this.images.filter(img => img && (img.url || img.exists));
-
   next();
 });
 
