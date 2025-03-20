@@ -138,9 +138,9 @@ const carSchema = new mongoose.Schema({
 
 // Pre-save middleware to set number of images
 carSchema.pre('save', function(next) {
-  // Most cars have 2 images
+  // Only set empty images if no images are provided
   if (!this.images || this.images.length === 0) {
-    this.images = [{ url: '', exists: true }, { url: '', exists: true }];
+    this.images = [];
   }
   next();
 });

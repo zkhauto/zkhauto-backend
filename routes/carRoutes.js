@@ -1,5 +1,6 @@
 import express from "express";
 import Car from "../models/Car.js";
+import mongoose from "mongoose";
 
 const router = express.Router();
 
@@ -14,19 +15,6 @@ router.get("/cars", async (req, res) => {
   } catch (error) {
     console.error("Error fetching cars:", error);
     res.status(500).json({ error: "Failed to fetch cars", message: error.message });
-  }
-});
-
-// GET route to fetch car details by ID
-router.get("/car/:id", async (req, res) => {
-  try {
-    const car = await Car.findById(req.params.id);
-    if (!car) {
-      return res.status(404).json({ message: "Car not found" });
-    }
-    res.status(200).json(car);
-  } catch (error) {
-    res.status(500).json({ error: "Failed to fetch car details", message: error.message });
   }
 });
 
@@ -50,8 +38,69 @@ router.post("/cars", async (req, res) => {
   }
 });
 
+// Bulk DELETE route to remove multiple cars - MUST come before the dynamic route
+router.delete("/cars/bulk-delete", async (req, res) => {
+  try {
+    console.log('Received bulk delete request:', req.body);
+    
+    const { carIds } = req.body;
+    if (!Array.isArray(carIds) || carIds.length === 0) {
+      console.log('Invalid or empty carIds array:', carIds);
+      return res.status(400).json({ message: 'No car IDs provided' });
+    }
+
+    console.log('Attempting to delete cars with IDs:', carIds);
+    
+    // Validate all IDs are valid ObjectIds
+    const validIds = carIds.filter(id => mongoose.Types.ObjectId.isValid(id));
+    if (validIds.length !== carIds.length) {
+      return res.status(400).json({ 
+        message: 'Invalid car IDs provided',
+        invalidIds: carIds.filter(id => !mongoose.Types.ObjectId.isValid(id))
+      });
+    }
+
+    // Delete multiple cars
+    const result = await Car.deleteMany({ _id: { $in: validIds } });
+    
+    console.log('Bulk delete result:', result);
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ message: 'No cars found to delete' });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully deleted ${result.deletedCount} cars`,
+      deletedCount: result.deletedCount
+    });
+  } catch (error) {
+    console.error('Bulk delete error:', error);
+    res.status(500).json({ 
+      error: "Failed to delete cars", 
+      message: error.message,
+      details: error.stack 
+    });
+  }
+});
+
+// Dynamic routes below - these should come after specific routes
+
+// GET route to fetch car details by ID
+router.get("/cars/:id", async (req, res) => {
+  try {
+    const car = await Car.findById(req.params.id);
+    if (!car) {
+      return res.status(404).json({ message: "Car not found" });
+    }
+    res.status(200).json(car);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch car details", message: error.message });
+  }
+});
+
 // PUT route to update car details
-router.put("/car/:id", async (req, res) => {
+router.put("/cars/:id", async (req, res) => {
   try {
     const car = await Car.findById(req.params.id);
     if (!car) {
@@ -82,7 +131,7 @@ router.put("/car/:id", async (req, res) => {
 });
 
 // DELETE route to remove a car
-router.delete("/car/:id", async (req, res) => {
+router.delete("/cars/:id", async (req, res) => {
   try {
     const car = await Car.findByIdAndDelete(req.params.id);
     if (!car) {
