@@ -1,8 +1,13 @@
 import express from "express";
 import Car from "../models/Car.js";
 import mongoose from "mongoose";
+import multer from "multer";
+import { uploadImageToGCS } from "../middleware/imageUpload.js";
 
 const router = express.Router();
+
+// Configure multer for file uploads (using memory storage as imageUpload expects buffer)
+const upload = multer({ storage: multer.memoryStorage() });
 
 // GET route to fetch all cars
 router.get("/cars", async (req, res) => {
@@ -23,20 +28,57 @@ router.get("/cars", async (req, res) => {
   }
 });
 
-// POST route to add a new car
-router.post("/cars", async (req, res) => {
+// POST route to add a new car - use multer middleware here
+router.post("/cars", upload.array("images", 3), async (req, res) => {
   try {
     const carData = { ...req.body };
+    let uploadedImageUrls = [];
 
-    // If no images provided, set default image URLs
-    if (!carData.images || !carData.images.length) {
+    // Check req.files (provided by multer) instead of req.body.images
+    if (req.files && req.files.length > 0) {
+      console.log(`Received ${req.files.length} files to upload.`);
+      uploadedImageUrls = await Promise.all(
+        req.files.map(async (file) => {
+          // Pass the file object from multer to the upload function
+          console.log(`Uploading file: ${file.originalname}`);
+          const uploadedUrl = await uploadImageToGCS(file);
+          console.log(`Uploaded ${file.originalname} to ${uploadedUrl}`);
+          return uploadedUrl;
+        })
+      );
+      carData.images = uploadedImageUrls;
+    } else {
+      // Set default image URLs if no images are provided
+      console.log("No files received, setting default images.");
       carData.images = ["url_to_exterior2.jpg", "url_to_interior2.jpg"];
     }
 
+    // Convert numeric fields from string if necessary (multer might stringify them)
+    carData.year = parseInt(carData.year);
+    carData.price = parseFloat(carData.price);
+    carData.mileage = parseInt(carData.mileage);
+    carData.engineCylinders = parseInt(carData.engineCylinders);
+    carData.engineHorsepower = parseInt(carData.engineHorsepower);
+    carData.rating = parseFloat(carData.rating);
+    // Ensure features is an array
+    if (carData.features && typeof carData.features === "string") {
+      try {
+        carData.features = JSON.parse(carData.features);
+      } catch (e) {
+        // Handle case where features might be sent differently
+        carData.features = carData.features.split(",").map((f) => f.trim());
+      }
+    } else if (!carData.features) {
+      carData.features = [];
+    }
+
+    console.log("Processed car data before saving:", carData);
     const car = new Car(carData);
     const savedCar = await car.save();
+    console.log("Car saved successfully:", savedCar._id);
     res.status(201).json(savedCar);
   } catch (error) {
+    console.error("Failed to add car:", error);
     res
       .status(500)
       .json({ error: "Failed to add car", message: error.message });

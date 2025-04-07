@@ -1,41 +1,53 @@
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 
-const userSchema = new mongoose.Schema({
-  googleId: {
-    type: String,
-    required: false,
-    unique: true,
-    sparse: true,
-  },
-  email: {
-    type: String,
-    required: true,
-    unique: true,
-  },
-  password: {
-    type: String,
-    required: function () {
-      return !this.googleId;
+const userSchema = new mongoose.Schema(
+  {
+    googleId: {
+      type: String,
+      required: false,
+      unique: true,
+      sparse: true,
+    },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+    },
+    password: {
+      type: String,
+      required: function () {
+        return !this.googleId;
+      },
+    },
+    displayName: {
+      type: String,
+      required: true,
+    },
+    firstName: String,
+    lastName: String,
+    profilePhoto: {
+      type: String,
+      default: null,
+    },
+    role: {
+      type: String,
+      enum: ["user", "admin"],
+      default: "user",
+    },
+    phoneNumber: {
+      type: String,
+      default: null,
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
     },
   },
-  displayName: {
-    type: String,
-    required: true,
-  },
-  firstName: String,
-  lastName: String,
-  profilePhoto: String,
-  role: {
-    type: String,
-    enum: ["user", "admin"],
-    default: "user",
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-});
+  {
+    timestamps: true,
+  }
+);
 
 userSchema.pre("save", function (next) {
   if (!this.googleId || this.googleId === null) {
