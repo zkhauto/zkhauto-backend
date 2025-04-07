@@ -1,6 +1,7 @@
 import express from "express";
 import passport from "../config/passport.js";
 import User from "../models/User.js";
+import { upload, uploadImageToGCS } from "../middleware/imageUpload.js";
 
 const router = express.Router();
 
@@ -116,6 +117,61 @@ router.put("/update-password", async (req, res) => {
 //usage example: http://localhost:5000/users/update-password
 //body: { email: "test@test.com", password: "newpassword" }
 
+//update user profile photo
+router.put(
+  "/update-profile-photo",
+  upload.single("image"),
+  async (req, res) => {
+    console.log("Request received:", {
+      file: req.file ? "Present" : "Missing",
+      email: req.body.email,
+    });
+
+    try {
+      const { email } = req.body;
+      console.log("update-profile-photo: Update request for email:", email);
+
+      if (!req.file) {
+        console.log("update-profile-photo: No file in request");
+        return res.status(400).json({ message: "No image file provided" });
+      }
+
+      console.log(
+        "update-profile-photo: File is present, proceeding with user lookup."
+      );
+      const user = await User.findOne({ email });
+
+      if (!user) {
+        console.log("update-profile-photo: User not found:", email);
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      console.log("update-profile-photo: User found. Starting image upload.");
+      const imageUrl = await uploadImageToGCS(req.file);
+      console.log(
+        "update-profile-photo: Image uploaded successfully. URL:",
+        imageUrl
+      );
+
+      user.profilePhoto = imageUrl;
+      console.log("update-profile-photo: Saving user with new profile photo.");
+      await user.save();
+      console.log("update-profile-photo: User saved successfully.");
+
+      res.status(200).json({
+        message: "Profile photo updated successfully",
+        profilePhoto: imageUrl,
+      });
+    } catch (error) {
+      console.error("Update profile photo error:", error);
+      res.status(500).json({
+        message: "Error updating profile photo",
+        error: error.message,
+      });
+    }
+  }
+);
+
 // delete user
 router.delete("/delete", async (req, res) => {
   const { email } = req.body;
@@ -200,6 +256,55 @@ router.get("/current-user", (req, res) => {
     return res.status(401).json({ message: "Not authenticated" });
   }
   res.json(req.user);
+});
+
+// Add this route after your existing routes
+router.put("/profile-photo", async (req, res) => {
+  try {
+    // Check if user is authenticated via session
+    if (!req.user) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    const { profilePhoto } = req.body;
+
+    // Validate profile photo
+    if (!profilePhoto) {
+      return res.status(400).json({
+        message: "Missing profile photo",
+      });
+    }
+
+    // Find and update user
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Update profile photo
+    user.profilePhoto = profilePhoto;
+    await user.save();
+
+    // Return updated user info
+    res.status(200).json({
+      message: "Profile photo updated successfully",
+      user: {
+        id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        displayName: user.displayName,
+        profilePhoto: user.profilePhoto,
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    console.error("Update profile photo error:", error);
+    res.status(500).json({
+      message: "Error updating profile photo",
+      error: error.message,
+    });
+  }
 });
 
 export default router;
