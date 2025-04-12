@@ -148,33 +148,119 @@ router.get("/cars/:id", async (req, res) => {
   }
 });
 
-// PUT route to update car details
-router.put("/cars/:id", async (req, res) => {
+// PUT route to update car details - use multer middleware
+router.put("/cars/:id", upload.array("images", 3), async (req, res) => {
   try {
-    const car = await Car.findById(req.params.id);
+    const carId = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(carId)) {
+      return res.status(400).json({ message: "Invalid Car ID" });
+    }
+
+    const car = await Car.findById(carId);
     if (!car) {
       return res.status(404).json({ message: "Car not found" });
     }
 
-    // Update the number of images if specified
-    if (req.body.numberOfImages) {
-      const numberOfImages = req.body.numberOfImages;
-      car.images = Array.from({ length: numberOfImages }, () => ({
-        url: "",
-        exists: true,
-      }));
+    const updateData = { ...req.body };
+
+    // Handle image retention and uploads
+    let finalImageList = [];
+    const existingImages = car.images || [];
+
+    // Parse retained images if provided
+    let retainedImages = [];
+    if (updateData.retainedImages) {
+      try {
+        retainedImages = JSON.parse(updateData.retainedImages);
+        console.log(`Car ${carId} - Retained images:`, retainedImages);
+        // Add retained images to final list
+        finalImageList = [...retainedImages];
+      } catch (e) {
+        console.error("Error parsing retainedImages JSON:", e);
+      }
+      // Remove retainedImages from updateData as it's not a schema field
+      delete updateData.retainedImages;
+    } else {
+      // If no retainedImages specified, keep all existing images
+      finalImageList = [...existingImages];
     }
 
-    // Update other fields
-    Object.keys(req.body).forEach((key) => {
-      if (key !== "numberOfImages" && key !== "images") {
-        car[key] = req.body[key];
-      }
-    });
+    // Handle potential new image uploads
+    if (req.files && req.files.length > 0) {
+      console.log(
+        `Received ${req.files.length} new files to update for car ${carId}.`
+      );
 
-    const updatedCar = await car.save();
+      const uploadedImageUrls = await Promise.all(
+        req.files.map(async (file) => {
+          console.log(`Uploading new file: ${file.originalname}`);
+          const uploadedUrl = await uploadImageToGCS(file);
+          console.log(`Uploaded ${file.originalname} to ${uploadedUrl}`);
+          return uploadedUrl;
+        })
+      );
+
+      // Add new images to final list
+      finalImageList = [...finalImageList, ...uploadedImageUrls];
+      console.log(`Car ${carId} - Final image list:`, finalImageList);
+    }
+
+    // Set the final image list in updateData
+    updateData.images = finalImageList;
+
+    // Convert numeric fields and handle features array
+    if (updateData.year) updateData.year = parseInt(updateData.year);
+    if (updateData.price) updateData.price = parseFloat(updateData.price);
+    if (updateData.mileage) updateData.mileage = parseInt(updateData.mileage);
+    if (updateData.engineCylinders)
+      updateData.engineCylinders = parseInt(updateData.engineCylinders);
+    if (updateData.engineHorsepower)
+      updateData.engineHorsepower = parseInt(updateData.engineHorsepower);
+    if (updateData.rating) updateData.rating = parseFloat(updateData.rating);
+
+    // Ensure features is an array
+    if (updateData.features && typeof updateData.features === "string") {
+      try {
+        updateData.features = JSON.parse(updateData.features);
+      } catch (e) {
+        console.warn(
+          "Could not parse features JSON string, attempting split:",
+          updateData.features
+        );
+        // Fallback if features are sent differently (e.g., comma-separated)
+        updateData.features = updateData.features
+          .split(",")
+          .map((f) => f.trim());
+      }
+    } else if (!updateData.features) {
+      // If features field is missing in update, keep existing or set to empty array
+      // To clear features, frontend should send an empty array string '[]'
+      // We avoid deleting it entirely unless explicitly empty
+      if (updateData.features === undefined) {
+        delete updateData.features; // Don't modify if not sent
+      }
+    } // If features is already an array (e.g., from JSON payload), do nothing
+
+    console.log(`Updating car ${carId} with data:`, updateData);
+
+    // Update the car document
+    const updatedCar = await Car.findByIdAndUpdate(
+      carId,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedCar) {
+      // This case might be redundant due to the initial findById check, but good practice
+      return res
+        .status(404)
+        .json({ message: "Car not found after update attempt." });
+    }
+
+    console.log(`Car ${carId} updated successfully.`);
     res.status(200).json(updatedCar);
   } catch (error) {
+    console.error(`Failed to update car ${req.params.id}:`, error);
     res
       .status(500)
       .json({ error: "Failed to update car", message: error.message });
