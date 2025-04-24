@@ -1,8 +1,21 @@
 import express from 'express';
+import OpenAI from 'openai';
 import ChatLog from '../models/ChatLog.js';
 import Car from '../models/Car.js';
+import dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
 
 const router = express.Router();
+
+// Initialize OpenAI with API key
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+// Debug: Log the API key (remove in production)
+console.log("🔑 OpenAI API Key loaded:", process.env.OPENAI_API_KEY ? "Yes" : "No");
 
 // Simple chat response handler
 router.post('/chat', async (req, res) => {
@@ -17,6 +30,7 @@ router.post('/chat', async (req, res) => {
     const lowerMessage = message.toLowerCase();
 
     try {
+      // First, try to handle specific car-related queries directly
       if (lowerMessage.includes('price') || lowerMessage.includes('cost')) {
         const cars = await Car.find({ status: 'available' }).sort({ price: 1 }).limit(5);
         if (cars.length > 0) {
@@ -37,14 +51,6 @@ router.post('/chat', async (req, res) => {
           response.reply = "I'm sorry, we don't have any cars available at the moment.";
         }
       }
-      else if (lowerMessage.includes('help') || lowerMessage.includes('assist')) {
-        response.reply = `I can help you with:\n
-- Finding cars by price range\n
-- Showing newest/latest cars\n
-- Information about specific car models\n
-- General car inquiries\n
-Just ask me anything about our car inventory!`;
-      }
       else if (lowerMessage.includes('electric') || lowerMessage.includes('ev')) {
         const electricCars = await Car.find({ fuel: 'Electric', status: 'available' });
         if (electricCars.length > 0) {
@@ -55,41 +61,22 @@ Just ask me anything about our car inventory!`;
           response.reply = "I'm sorry, we don't have any electric vehicles in stock at the moment.";
         }
       }
-      else if (/^\d{4}$/.test(message)) {
-        const year = parseInt(message);
-        const cars = await Car.find({ year: year, status: 'available' });
-        if (cars.length > 0) {
-          response.reply = `Here are our cars from ${year}:\n${cars.map(car => 
-            `${car.brand} ${car.model} - $${car.price.toLocaleString()}`
-          ).join('\n')}`;
-        } else {
-          response.reply = `I'm sorry, we don't have any cars from ${year} in stock at the moment.`;
-        }
-      }
       else if (lowerMessage.includes('thank') || lowerMessage.includes('thanks')) {
-        response.reply = "You're welcome! Is there anything else I can help you with?";
+        response.reply = "You're welcome! Feel free to ask if you need any more information about our cars.";
       }
-      else if (lowerMessage.includes('hello') || lowerMessage.includes('hi') || lowerMessage.includes('hey')) {
-        response.reply = "Hello! How can I help you find your perfect car today?";
-      }
-      else if (lowerMessage.includes('bye') || lowerMessage.includes('goodbye')) {
-        response.reply = "Goodbye! Feel free to come back if you need any help finding a car.";
-      }
-      else if (lowerMessage === 'yes' || lowerMessage === 'yeah' || lowerMessage === 'okay' || lowerMessage === 'ok') {
-        response.reply = "Great! What would you like to know about our cars? I can help you with prices, models, features, or any other specific details.";
-      }
-      else if (lowerMessage === 'great' || lowerMessage === 'awesome' || lowerMessage === 'perfect' || lowerMessage === 'excellent') {
-        response.reply = "I'm glad you're satisfied! Would you like to know more about our cars? I can show you our latest models, prices, or any specific features you're interested in.";
+      else if (lowerMessage === 'ok' || lowerMessage === 'okay') {
+        response.reply = "Great! Is there anything specific you'd like to know about our cars?";
       }
       else {
-        // Default response for unrecognized queries
-        response.reply = `I understand you're asking about "${message}". I can help you find cars based on:\n
-- Price range\n
-- Make and model\n
-- Year\n
-- Fuel type\n
-- Features\n
-What specific information are you looking for?`;
+        // For general queries, show available cars
+        const cars = await Car.find({ status: 'available' }).limit(5);
+        if (cars.length > 0) {
+          response.reply = `Here are some of our available cars:\n${cars.map(car => 
+            `${car.brand} ${car.model} (${car.year}) - $${car.price.toLocaleString()}`
+          ).join('\n')}\n\nYou can ask me about specific cars, prices, or features!`;
+        } else {
+          response.reply = "I'm sorry, we don't have any cars available at the moment.";
+        }
       }
     } catch (dbError) {
       console.error('Database error:', dbError);
@@ -121,13 +108,53 @@ What specific information are you looking for?`;
 });
 
 // Get chat logs
-router.get('/logs', async (req, res) => {
+router.get('/chat/logs', async (req, res) => {
   try {
-    const logs = await ChatLog.find().sort({ timestamp: -1 });
+    const logs = await ChatLog.find().sort({ createdAt: -1 });
     res.status(200).json(logs);
   } catch (error) {
     console.error('Error fetching chat logs:', error);
-    res.status(500).json({ message: 'Failed to fetch chat logs.' });
+    res.status(500).json({ message: 'Error fetching chat logs', error: error.message });
+  }
+});
+
+// Get all chat logs
+router.get('/logs', async (req, res) => {
+  try {
+    const logs = await ChatLog.find().sort({ timestamp: -1 });
+    res.json(logs);
+  } catch (error) {
+    console.error('Error fetching chat logs:', error);
+    res.status(500).json({ message: 'Error fetching chat logs' });
+  }
+});
+
+// Delete a single chat log
+router.delete('/logs/:id', async (req, res) => {
+  try {
+    const log = await ChatLog.findByIdAndDelete(req.params.id);
+    if (!log) {
+      return res.status(404).json({ message: 'Chat log not found' });
+    }
+    res.json({ message: 'Chat log deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting chat log:', error);
+    res.status(500).json({ message: 'Error deleting chat log' });
+  }
+});
+
+// Delete multiple chat logs
+router.delete('/logs', async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: 'Invalid or empty array of IDs' });
+    }
+    const result = await ChatLog.deleteMany({ _id: { $in: ids } });
+    res.json({ message: `${result.deletedCount} chat logs deleted successfully` });
+  } catch (error) {
+    console.error('Error deleting chat logs:', error);
+    res.status(500).json({ message: 'Error deleting chat logs' });
   }
 });
 

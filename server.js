@@ -1,17 +1,30 @@
-import dotenv from "dotenv";
-dotenv.config(); // Load .env variables before anything else
+import express from 'express';
+import mongoose from 'mongoose';
+import cors from 'cors';
+import session from 'express-session';
+import MongoStore from 'connect-mongo';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
+import carRoutes from './routes/carRoutes.js';
+import userRoutes from './routes/userRoutes.js';
+import contactRoutes from './routes/contactRoutes.js';
+import chatRoutes from './routes/chatRoutes.js';
+import bookingRoutes from './routes/bookingRoutes.js';
+import connectDB from './config/db.js';
+import passport from './config/passport.js';
 
-import MongoStore from "connect-mongo";
-import cors from "cors";
-import express from "express";
-import session from "express-session";
-import connectDB from "./config/db.js";
-import passport from "./config/passport.js";
-import bookingRoutes from "./routes/bookingRoutes.js";
-import carRoutes from "./routes/carRoutes.js";
-import contactRoutes from "./routes/contactRoutes.js";
-import userRoutes from "./routes/userRoutes.js";
-import chatRoutes from "./routes/chatRoutes.js";
+// Get the directory name
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load environment variables before anything else
+dotenv.config();
+
+console.log('Environment variables loaded:');
+console.log('- PORT:', process.env.PORT);
+console.log('- MONGODB_URI:', process.env.MONGODB_URI ? 'Set' : 'Not set');
+console.log('- OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? 'Set' : 'Not set');
 
 const app = express();
 
@@ -35,10 +48,15 @@ app.use((req, res, next) => {
     "Access-Control-Allow-Headers",
     "Origin, X-Requested-With, Content-Type, Accept, Authorization"
   );
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
   next();
 });
 
+// Parse JSON bodies
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Set up express-session middleware with MongoDB store
 app.use(
@@ -90,7 +108,14 @@ app.use("/api", carRoutes);
 app.use("/api", contactRoutes);
 
 // Mount chat routes
-app.use("/api", chatRoutes);
+app.use("/api/chat", chatRoutes);
+
+// Add OPTIONS handling
+app.options('*', (req, res) => {
+  res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
+  res.sendStatus(200);
+});
 
 // Protected route example
 app.get("/api/profile", isAuthenticated, (req, res) => {
@@ -102,16 +127,23 @@ app.get("/api/admin", isAdmin, (req, res) => {
   res.json({ message: "Welcome to admin panel" });
 });
 
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', message: 'Server is running' });
+});
+
 // Start server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🔗 Health check: http://localhost:${PORT}/health`);
+  console.log(`💬 Chat endpoint: http://localhost:${PORT}/api/chat`);
 }).on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
-    console.error(`Port ${PORT} is already in use. Please free the port or use a different port.`);
+    console.error(`❌ Port ${PORT} is already in use. Please free the port or use a different port.`);
     process.exit(1);
   } else {
-    console.error('Server error:', err);
+    console.error('❌ Server error:', err);
     process.exit(1);
   }
 });

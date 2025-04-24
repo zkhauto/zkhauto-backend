@@ -3,8 +3,21 @@ import Car from "../models/Car.js";
 import mongoose from "mongoose";
 import multer from "multer";
 import { uploadImageToGCS } from "../middleware/imageUpload.js";
+import { OpenAI } from 'openai';
+import dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
 
 const router = express.Router();
+
+// Initialize OpenAI with API key
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+// Debug: Log the API key (remove in production)
+console.log("🔑 OpenAI API Key loaded in carRoutes:", process.env.OPENAI_API_KEY ? "Yes" : "No");
 
 // Configure multer for file uploads (using memory storage as imageUpload expects buffer)
 const upload = multer({ storage: multer.memoryStorage() });
@@ -279,6 +292,106 @@ router.delete("/cars/:id", async (req, res) => {
     res
       .status(500)
       .json({ error: "Failed to delete car", message: error.message });
+  }
+});
+
+// Smart search endpoint
+router.post('/smart-search', async (req, res) => {
+  try {
+    const { query } = req.body;
+
+    // Parse the query using OpenAI
+    const response = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        { 
+          role: "system", 
+          content: "Convert car search queries into JSON filters. Only include fields that are explicitly mentioned in the query." 
+        },
+        { role: "user", content: query }
+      ],
+      functions: [
+        {
+          name: "filterCars",
+          parameters: {
+            type: "object",
+            properties: {
+              brand: { type: "string" },
+              model: { type: "string" },
+              year: { 
+                type: "object",
+                properties: {
+                  min: { type: "number" },
+                  max: { type: "number" }
+                }
+              },
+              price: {
+                type: "object",
+                properties: {
+                  min: { type: "number" },
+                  max: { type: "number" }
+                }
+              },
+              type: { type: "string" },
+              fuel: { type: "string" },
+              mileage: {
+                type: "object",
+                properties: {
+                  max: { type: "number" }
+                }
+              },
+              condition: { type: "string" }
+            }
+          }
+        }
+      ],
+      function_call: { name: "filterCars" }
+    });
+
+    const filters = JSON.parse(response.choices[0].message.function_call.arguments);
+    
+    // Build MongoDB query from filters
+    const mongoQuery = {};
+    
+    if (filters.brand) mongoQuery.brand = new RegExp(filters.brand, 'i');
+    if (filters.model) mongoQuery.model = new RegExp(filters.model, 'i');
+    if (filters.type) mongoQuery.type = new RegExp(filters.type, 'i');
+    if (filters.fuel) mongoQuery.fuel = new RegExp(filters.fuel, 'i');
+    if (filters.condition) mongoQuery.condition = new RegExp(filters.condition, 'i');
+    
+    if (filters.year) {
+      if (filters.year.min) mongoQuery.year = { ...mongoQuery.year, $gte: filters.year.min };
+      if (filters.year.max) mongoQuery.year = { ...mongoQuery.year, $lte: filters.year.max };
+    }
+    
+    if (filters.price) {
+      if (filters.price.min) mongoQuery.price = { ...mongoQuery.price, $gte: filters.price.min };
+      if (filters.price.max) mongoQuery.price = { ...mongoQuery.price, $lte: filters.price.max };
+    }
+    
+    if (filters.mileage?.max) {
+      mongoQuery.mileage = { $lte: filters.mileage.max };
+    }
+
+    // Add status filter to only show available cars
+    mongoQuery.status = 'available';
+
+    // Execute the query
+    const cars = await Car.find(mongoQuery);
+    
+    res.json({
+      success: true,
+      count: cars.length,
+      filters,
+      cars
+    });
+  } catch (error) {
+    console.error('Smart search error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error processing search query',
+      error: error.message
+    });
   }
 });
 

@@ -4,121 +4,60 @@ const carSchema = new mongoose.Schema(
   {
     brand: {
       type: String,
-      required: true,
+      required: [true, 'Please provide a brand'],
       trim: true,
     },
     model: {
       type: String,
-      required: true,
+      required: [true, 'Please provide a model'],
       trim: true,
     },
     year: {
       type: Number,
-      required: true,
-      min: 1900,
-      max: new Date().getFullYear() + 1,
+      required: [true, 'Please provide a year'],
     },
     price: {
       type: Number,
-      required: true,
-      min: 0,
-    },
-    type: {
-      type: String,
-      required: true,
-      enum: [
-        "SUV",
-        "Sedan",
-        "Truck",
-        "Van",
-        "Coupe",
-        "Wagon",
-        "Convertible",
-        "Hatchback",
-      ],
-    },
-    fuel: {
-      type: String,
-      required: true,
-      enum: [
-        "Gasoline",
-        "Diesel",
-        "Electric",
-        "Hybrid",
-        "Plug-in Hybrid",
-        "Hydrogen",
-      ],
+      required: [true, 'Please provide a price'],
     },
     mileage: {
       type: Number,
-      required: true,
-      min: 0,
+      required: [true, 'Please provide mileage'],
+    },
+    fuel: {
+      type: String,
+      required: [true, 'Please provide fuel type'],
+      enum: ['Petrol', 'Diesel', 'Electric', 'Hybrid'],
+    },
+    transmission: {
+      type: String,
+      required: [true, 'Please provide transmission type'],
+      enum: ['Automatic', 'Manual'],
     },
     status: {
       type: String,
-      required: true,
-      enum: ["available", "sold", "reserved", "maintenance"],
-      default: "available",
+      required: [true, 'Please provide status'],
+      enum: ['available', 'sold', 'reserved'],
+      default: 'available',
     },
-    color: {
+    images: [{
       type: String,
-      required: true,
-      trim: true,
-    },
-    engineSize: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    engineCylinders: {
-      type: Number,
-      required: true,
-      min: 0,
-    },
-    engineHorsepower: {
-      type: Number,
-      required: true,
-      min: 0,
-    },
-    engineTransmission: {
-      type: String,
-      required: true,
-      enum: ["Manual", "Automatic", "CVT", "DCT", "Semi-Automatic"],
-    },
-    features: [
-      {
-        type: String,
-        trim: true,
-      },
-    ],
-    images: [
-      {
-        type: String,
-        trim: true,
-      },
-    ],
-    driveTrain: {
-      type: String,
-      required: true,
-      enum: ["FWD", "RWD", "AWD", "4WD"],
-    },
+    }],
     description: {
       type: String,
-      required: true,
-      trim: true,
-      maxLength: 2000,
+      required: [true, 'Please provide a description'],
+    },
+    features: [{
+      type: String,
+    }],
+    color: {
+      type: String,
+      required: [true, 'Please provide color'],
     },
     condition: {
       type: String,
-      required: true,
-      enum: ["excellent", "good", "fair", "poor"],
-      default: "good",
-    },
-    rating: {
-      type: Number,
-      required: true,
-      min: 0,
-      max: 5,
+      required: [true, 'Please provide condition'],
+      enum: ['New', 'Used'],
     },
   },
   {
