@@ -111,8 +111,8 @@ const carSchema = new mongoose.Schema(
     condition: {
       type: String,
       required: true,
-      enum: ["New", "Used", "Refurbished", "Remade"],
-      default: "Used",
+      enum: ["excellent", "good", "fair", "poor"],
+      default: "good",
     },
     rating: {
       type: Number,
