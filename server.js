@@ -11,6 +11,7 @@ import bookingRoutes from "./routes/bookingRoutes.js";
 import carRoutes from "./routes/carRoutes.js";
 import contactRoutes from "./routes/contactRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
+import chatRoutes from "./routes/chatRoutes.js";
 
 const app = express();
 
@@ -88,6 +89,9 @@ app.use("/api", carRoutes);
 //mount contact use routes
 app.use("/api", contactRoutes);
 
+// Mount chat routes
+app.use("/api", chatRoutes);
+
 // Protected route example
 app.get("/api/profile", isAuthenticated, (req, res) => {
   res.json(req.user);
@@ -98,5 +102,16 @@ app.get("/api/admin", isAdmin, (req, res) => {
   res.json({ message: "Welcome to admin panel" });
 });
 
+// Start server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+}).on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use. Please free the port or use a different port.`);
+    process.exit(1);
+  } else {
+    console.error('Server error:', err);
+    process.exit(1);
+  }
+});
