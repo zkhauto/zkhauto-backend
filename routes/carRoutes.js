@@ -26,7 +26,18 @@ const upload = multer({ storage: multer.memoryStorage() });
 router.get("/cars", async (req, res) => {
   try {
     console.log("Fetching all cars...");
-    const cars = await Car.find({});
+    const { sortBy, sortOrder = 'asc' } = req.query;
+    
+    let sortOptions = {};
+    if (sortBy) {
+      // Validate sortBy field exists in Car model
+      const validSortFields = ['price', 'year', 'mileage', 'createdAt'];
+      if (validSortFields.includes(sortBy)) {
+        sortOptions[sortBy] = sortOrder === 'asc' ? 1 : -1;
+      }
+    }
+
+    const cars = await Car.find({}).sort(sortOptions);
     console.log(`Found ${cars.length} cars`);
     console.log(
       "Car brands:",

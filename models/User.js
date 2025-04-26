@@ -24,8 +24,14 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-    firstName: String,
-    lastName: String,
+    firstName: {
+      type: String,
+      required: true,
+    },
+    lastName: {
+      type: String,
+      required: true,
+    },
     profilePhoto: {
       type: String,
       default: null,
@@ -38,6 +44,48 @@ const userSchema = new mongoose.Schema(
     phoneNumber: {
       type: String,
       default: null,
+    },
+    dateOfBirth: {
+      type: Date,
+      default: null,
+    },
+    language: {
+      type: String,
+      default: "English",
+    },
+    carPreferences: {
+      make: {
+        type: String,
+        default: null,
+      },
+      model: {
+        type: String,
+        default: null,
+      },
+      type: {
+        type: String,
+        default: null,
+      },
+      steering: {
+        type: String,
+        default: null,
+      },
+      year: {
+        type: Number,
+        default: null,
+      },
+      priceRange: {
+        type: String,
+        default: null,
+      },
+      mileage: {
+        type: String,
+        default: null,
+      },
+      location: {
+        type: String,
+        default: null,
+      }
     },
     createdAt: {
       type: Date,
@@ -76,6 +124,9 @@ userSchema.pre("save", async function (next) {
 
 userSchema.methods.comparePassword = async function (candidatePassword) {
   try {
+    if (!candidatePassword || !this.password) {
+      return false;
+    }
     return await bcrypt.compare(candidatePassword, this.password);
   } catch (error) {
     throw error;
