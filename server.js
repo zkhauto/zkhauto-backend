@@ -13,6 +13,7 @@ import chatRoutes from './routes/chatRoutes.js';
 import bookingRoutes from './routes/bookingRoutes.js';
 import connectDB from './config/db.js';
 import passport from './config/passport.js';
+import footerRoutes from './routes/footerRoutes.js';
 
 // Get the directory name
 const __filename = fileURLToPath(import.meta.url);
@@ -109,6 +110,9 @@ app.use("/api", contactRoutes);
 
 // Mount chat routes
 app.use("/api/chat", chatRoutes);
+
+// Mount footer routes
+app.use('/api/footer', footerRoutes);
 
 // Add OPTIONS handling
 app.options('*', (req, res) => {

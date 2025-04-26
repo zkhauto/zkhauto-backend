@@ -307,4 +307,86 @@ router.put("/profile-photo", async (req, res) => {
   }
 });
 
+// Update user profile information
+router.put("/profile", async (req, res) => {
+  try {
+    // Check if user is authenticated via session
+    if (!req.user) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    const { 
+      firstName, 
+      lastName, 
+      displayName, 
+      email, 
+      phoneNumber, 
+      dateOfBirth, 
+      language,
+      carPreferences
+    } = req.body;
+
+    // Find and update user
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Update user fields if provided
+    if (firstName) user.firstName = firstName;
+    if (lastName) user.lastName = lastName;
+    if (displayName) user.displayName = displayName;
+    if (email) user.email = email;
+    if (phoneNumber !== undefined) user.phoneNumber = phoneNumber || "";
+    if (dateOfBirth) user.dateOfBirth = new Date(dateOfBirth);
+    if (language) user.language = language;
+    if (carPreferences) {
+      user.carPreferences = {
+        make: carPreferences.make || "",
+        model: carPreferences.model || "",
+        type: carPreferences.type || "",
+        steering: carPreferences.steering || "",
+        year: carPreferences.year ? parseInt(carPreferences.year) : null,
+        priceRange: carPreferences.priceRange || "",
+        mileage: carPreferences.mileage || "",
+        location: carPreferences.location || ""
+      };
+    }
+
+    await user.save();
+
+    // Return updated user info
+    res.status(200).json({
+      message: "Profile updated successfully",
+      user: {
+        id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        displayName: user.displayName,
+        phoneNumber: user.phoneNumber || "",
+        dateOfBirth: user.dateOfBirth,
+        language: user.language,
+        carPreferences: {
+          make: user.carPreferences?.make || "",
+          model: user.carPreferences?.model || "",
+          type: user.carPreferences?.type || "",
+          steering: user.carPreferences?.steering || "",
+          year: user.carPreferences?.year || null,
+          priceRange: user.carPreferences?.priceRange || "",
+          mileage: user.carPreferences?.mileage || "",
+          location: user.carPreferences?.location || ""
+        },
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    console.error("Update profile error:", error);
+    res.status(500).json({
+      message: "Error updating profile",
+      error: error.message,
+    });
+  }
+});
+
 export default router;
