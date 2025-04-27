@@ -406,4 +406,64 @@ router.post('/smart-search', async (req, res) => {
   }
 });
 
+// POST route to get AI prediction for car price and condition
+router.post("/cars/predict", async (req, res) => {
+  try {
+    const carData = req.body;
+    
+    // Create a prompt for the AI
+    const prompt = `Given the following car specifications:
+Brand: ${carData.brand}
+Model: ${carData.model}
+Year: ${carData.year}
+Type: ${carData.type}
+Fuel: ${carData.fuel}
+Mileage: ${carData.mileage}
+Color: ${carData.color}
+Engine Size: ${carData.engineSize}
+Engine Cylinders: ${carData.engineCylinders}
+Engine Horsepower: ${carData.engineHorsepower}
+Transmission: ${carData.transmission}
+Drive Train: ${carData.driveTrain}
+Condition: ${carData.condition}
+Features: ${carData.features.join(', ')}
+
+Please provide:
+1. A reasonable market price estimate in USD
+2. A condition assessment (Excellent, Good, Fair, Poor) based on the provided information
+
+Format your response as a JSON object with 'predictedPrice' and 'predictedCondition' fields.`;
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        {
+          role: "system",
+          content: "You are a car valuation expert. Provide accurate price estimates and condition assessments based on car specifications."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      temperature: 0.7,
+      max_tokens: 150
+    });
+
+    // Parse the AI response
+    const response = JSON.parse(completion.choices[0].message.content);
+    
+    res.status(200).json({
+      predictedPrice: response.predictedPrice,
+      predictedCondition: response.predictedCondition
+    });
+  } catch (error) {
+    console.error("Failed to get AI prediction:", error);
+    res.status(500).json({ 
+      error: "Failed to get AI prediction", 
+      message: error.message 
+    });
+  }
+});
+
 export default router;
