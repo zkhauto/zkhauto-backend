@@ -26,7 +26,12 @@ const upload = multer({ storage: multer.memoryStorage() });
 router.get("/cars", async (req, res) => {
   try {
     console.log("Fetching all cars...");
-    const { sortBy, sortOrder = 'asc' } = req.query;
+    const { sortBy, sortOrder = 'asc', driveTrain } = req.query;
+    
+    let query = {};
+    if (driveTrain) {
+      query.driveTrain = driveTrain.toUpperCase();
+    }
     
     let sortOptions = {};
     if (sortBy) {
@@ -37,7 +42,7 @@ router.get("/cars", async (req, res) => {
       }
     }
 
-    const cars = await Car.find({}).sort(sortOptions);
+    const cars = await Car.find(query).sort(sortOptions);
     console.log(`Found ${cars.length} cars`);
     console.log(
       "Car brands:",
