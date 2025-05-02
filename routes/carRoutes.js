@@ -1,10 +1,10 @@
+import dotenv from "dotenv";
 import express from "express";
-import Car from "../models/Car.js";
 import mongoose from "mongoose";
 import multer from "multer";
+import { OpenAI } from "openai";
 import { uploadImageToGCS } from "../middleware/imageUpload.js";
-import { OpenAI } from 'openai';
-import dotenv from 'dotenv';
+import Car from "../models/Car.js";
 
 // Load environment variables
 dotenv.config();
@@ -17,7 +17,10 @@ const openai = new OpenAI({
 });
 
 // Debug: Log the API key (remove in production)
-console.log("🔑 OpenAI API Key loaded in carRoutes:", process.env.OPENAI_API_KEY ? "Yes" : "No");
+console.log(
+  "🔑 OpenAI API Key loaded in carRoutes:",
+  process.env.OPENAI_API_KEY ? "Yes" : "No"
+);
 
 // Configure multer for file uploads (using memory storage as imageUpload expects buffer)
 const upload = multer({ storage: multer.memoryStorage() });
@@ -32,13 +35,12 @@ router.get("/cars", async (req, res) => {
     if (driveTrain) {
       query.driveTrain = driveTrain.toUpperCase();
     }
-    
     let sortOptions = {};
     if (sortBy) {
       // Validate sortBy field exists in Car model
-      const validSortFields = ['price', 'year', 'mileage', 'createdAt'];
+      const validSortFields = ["price", "year", "mileage", "createdAt"];
       if (validSortFields.includes(sortBy)) {
-        sortOptions[sortBy] = sortOrder === 'asc' ? 1 : -1;
+        sortOptions[sortBy] = sortOrder === "asc" ? 1 : -1;
       }
     }
 
@@ -54,6 +56,21 @@ router.get("/cars", async (req, res) => {
     res
       .status(500)
       .json({ error: "Failed to fetch cars", message: error.message });
+  }
+});
+
+// fetch only sold cars
+router.get("/cars/sold", async (req, res) => {
+  try {
+    console.log("Fetching sold cars...");
+    const cars = await Car.find({ status: "sold" });
+    console.log(`Found ${cars.length} sold cars`);
+    res.status(200).json(cars);
+  } catch (error) {
+    console.error("Error fetching sold cars:", error);
+    res
+      .status(500)
+      .json({ error: "Failed to fetch sold cars", message: error.message });
   }
 });
 
@@ -312,7 +329,7 @@ router.delete("/cars/:id", async (req, res) => {
 });
 
 // Smart search endpoint
-router.post('/smart-search', async (req, res) => {
+router.post("/smart-search", async (req, res) => {
   try {
     const { query } = req.body;
 
@@ -320,11 +337,12 @@ router.post('/smart-search', async (req, res) => {
     const response = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
       messages: [
-        { 
-          role: "system", 
-          content: "Convert car search queries into JSON filters. Only include fields that are explicitly mentioned in the query." 
+        {
+          role: "system",
+          content:
+            "Convert car search queries into JSON filters. Only include fields that are explicitly mentioned in the query.",
         },
-        { role: "user", content: query }
+        { role: "user", content: query },
       ],
       functions: [
         {
@@ -334,79 +352,86 @@ router.post('/smart-search', async (req, res) => {
             properties: {
               brand: { type: "string" },
               model: { type: "string" },
-              year: { 
+              year: {
                 type: "object",
                 properties: {
                   min: { type: "number" },
-                  max: { type: "number" }
-                }
+                  max: { type: "number" },
+                },
               },
               price: {
                 type: "object",
                 properties: {
                   min: { type: "number" },
-                  max: { type: "number" }
-                }
+                  max: { type: "number" },
+                },
               },
               type: { type: "string" },
               fuel: { type: "string" },
               mileage: {
                 type: "object",
                 properties: {
-                  max: { type: "number" }
-                }
+                  max: { type: "number" },
+                },
               },
-              condition: { type: "string" }
-            }
-          }
-        }
+              condition: { type: "string" },
+            },
+          },
+        },
       ],
-      function_call: { name: "filterCars" }
+      function_call: { name: "filterCars" },
     });
 
-    const filters = JSON.parse(response.choices[0].message.function_call.arguments);
-    
+    const filters = JSON.parse(
+      response.choices[0].message.function_call.arguments
+    );
+
     // Build MongoDB query from filters
     const mongoQuery = {};
-    
-    if (filters.brand) mongoQuery.brand = new RegExp(filters.brand, 'i');
-    if (filters.model) mongoQuery.model = new RegExp(filters.model, 'i');
-    if (filters.type) mongoQuery.type = new RegExp(filters.type, 'i');
-    if (filters.fuel) mongoQuery.fuel = new RegExp(filters.fuel, 'i');
-    if (filters.condition) mongoQuery.condition = new RegExp(filters.condition, 'i');
-    
+
+    if (filters.brand) mongoQuery.brand = new RegExp(filters.brand, "i");
+    if (filters.model) mongoQuery.model = new RegExp(filters.model, "i");
+    if (filters.type) mongoQuery.type = new RegExp(filters.type, "i");
+    if (filters.fuel) mongoQuery.fuel = new RegExp(filters.fuel, "i");
+    if (filters.condition)
+      mongoQuery.condition = new RegExp(filters.condition, "i");
+
     if (filters.year) {
-      if (filters.year.min) mongoQuery.year = { ...mongoQuery.year, $gte: filters.year.min };
-      if (filters.year.max) mongoQuery.year = { ...mongoQuery.year, $lte: filters.year.max };
+      if (filters.year.min)
+        mongoQuery.year = { ...mongoQuery.year, $gte: filters.year.min };
+      if (filters.year.max)
+        mongoQuery.year = { ...mongoQuery.year, $lte: filters.year.max };
     }
-    
+
     if (filters.price) {
-      if (filters.price.min) mongoQuery.price = { ...mongoQuery.price, $gte: filters.price.min };
-      if (filters.price.max) mongoQuery.price = { ...mongoQuery.price, $lte: filters.price.max };
+      if (filters.price.min)
+        mongoQuery.price = { ...mongoQuery.price, $gte: filters.price.min };
+      if (filters.price.max)
+        mongoQuery.price = { ...mongoQuery.price, $lte: filters.price.max };
     }
-    
+
     if (filters.mileage?.max) {
       mongoQuery.mileage = { $lte: filters.mileage.max };
     }
 
     // Add status filter to only show available cars
-    mongoQuery.status = 'available';
+    mongoQuery.status = "available";
 
     // Execute the query
     const cars = await Car.find(mongoQuery);
-    
+
     res.json({
       success: true,
       count: cars.length,
       filters,
-      cars
+      cars,
     });
   } catch (error) {
-    console.error('Smart search error:', error);
+    console.error("Smart search error:", error);
     res.status(500).json({
       success: false,
-      message: 'Error processing search query',
-      error: error.message
+      message: "Error processing search query",
+      error: error.message,
     });
   }
 });

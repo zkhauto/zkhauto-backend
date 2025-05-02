@@ -62,6 +62,18 @@ router.get("/test-drives", async (req, res) => {
   }
 });
 
+// get approved test drives for a specific car model
+router.get("/test-drives/approve", async (req, res) => {
+  try {
+    const testDrives = await Booking.find({
+      status: "approved",
+    });
+    res.status(200).json(testDrives);
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching test drives" });
+  }
+});
+
 // router.get("/test-drives/:email", async (req, res) => {
 //   try {
 //     const { email } = req.params;
