@@ -29,12 +29,24 @@ const upload = multer({ storage: multer.memoryStorage() });
 router.get("/cars", async (req, res) => {
   try {
     console.log("Fetching all cars...");
-    const { sortBy, sortOrder = 'asc', driveTrain } = req.query;
+    const { sortBy, sortOrder = 'asc', driveTrain, minMileage, maxMileage } = req.query;
     
     let query = {};
     if (driveTrain) {
       query.driveTrain = driveTrain.toUpperCase();
     }
+
+    // Add mileage range filtering
+    if (minMileage || maxMileage) {
+      query.mileage = {};
+      if (minMileage) {
+        query.mileage.$gte = parseInt(minMileage);
+      }
+      if (maxMileage) {
+        query.mileage.$lte = parseInt(maxMileage);
+      }
+    }
+
     let sortOptions = {};
     if (sortBy) {
       // Validate sortBy field exists in Car model
@@ -493,6 +505,46 @@ Format your response as a JSON object with 'predictedPrice' and 'predictedCondit
       error: "Failed to get AI prediction", 
       message: error.message 
     });
+  }
+});
+
+// Get monthly sales data
+router.get("/cars/sales/monthly", async (req, res) => {
+  try {
+    console.log("Fetching monthly sales data...");
+    
+    const monthlySales = await Car.aggregate([
+      {
+        $match: {
+          status: "sold"
+        }
+      },
+      {
+        $group: {
+          _id: {
+            year: { $year: "$updatedAt" },
+            month: { $month: "$updatedAt" }
+          },
+          totalSales: { $sum: "$price" },
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $sort: {
+          "_id.year": -1,
+          "_id.month": -1
+        }
+      },
+      {
+        $limit: 12 // Get last 12 months
+      }
+    ]);
+
+    console.log(`Found ${monthlySales.length} months of sales data`);
+    res.status(200).json(monthlySales);
+  } catch (error) {
+    console.error("Error fetching monthly sales:", error);
+    res.status(500).json({ error: "Failed to fetch monthly sales", message: error.message });
   }
 });
 
