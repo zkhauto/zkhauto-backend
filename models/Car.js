@@ -34,6 +34,12 @@ const carSchema = new mongoose.Schema(
       required: [true, 'Please provide transmission type'],
       enum: ['Automatic', 'Manual'],
     },
+    driveTrain: {
+      type: String,
+      required: [true, 'Please provide drive train type'],
+      enum: ['FWD', 'RWD', 'AWD', '4WD'],
+      uppercase: true,
+    },
     status: {
       type: String,
       required: [true, 'Please provide status'],
