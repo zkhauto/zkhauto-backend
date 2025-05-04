@@ -31,3 +31,4 @@ node_modules/
 .env.local
 .env.*.local
 
+config/google-credentials.json
