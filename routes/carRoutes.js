@@ -5,6 +5,7 @@ import multer from "multer";
 import { OpenAI } from "openai";
 import { uploadImageToGCS } from "../middleware/imageUpload.js";
 import Car from "../models/Car.js";
+import { ImageAnnotatorClient } from '@google-cloud/vision';
 
 // Load environment variables
 dotenv.config();
@@ -14,6 +15,11 @@ const router = express.Router();
 // Initialize OpenAI with API key
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
+});
+
+// Initialize Google Cloud Vision client
+const visionClient = new ImageAnnotatorClient({
+  keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS
 });
 
 // Debug: Log the API key (remove in production)
@@ -545,6 +551,204 @@ router.get("/cars/sales/monthly", async (req, res) => {
   } catch (error) {
     console.error("Error fetching monthly sales:", error);
     res.status(500).json({ error: "Failed to fetch monthly sales", message: error.message });
+  }
+});
+
+// Helper function to analyze car image for damage
+async function analyzeCarImage(imageUrl) {
+  try {
+    console.log('Analyzing image:', imageUrl);
+
+    // Perform multiple types of analysis in parallel
+    const [objectDetection, labelDetection, webDetection] = await Promise.all([
+      visionClient.objectLocalization(imageUrl),
+      visionClient.labelDetection(imageUrl),
+      visionClient.webDetection(imageUrl)
+    ]);
+
+    console.log('Analysis completed, processing results...');
+
+    // Extract results with null checks
+    const objects = objectDetection[0]?.localizedObjectAnnotations || [];
+    const labels = labelDetection[0]?.labelAnnotations || [];
+    const webEntities = webDetection[0]?.webDetection?.webEntities || [];
+
+    // Log detection results
+    console.log('Detected objects:', objects.map(obj => obj.name));
+    console.log('Detected labels:', labels.map(label => label.description));
+
+    // Enhanced damage indicators with car-specific terms
+    const damageIndicators = {
+      scratches: ['scratch', 'scratches', 'paint damage', 'paint chip', 'scuff', 'scrape'],
+      dents: ['dent', 'dents', 'body damage', 'body work', 'impact damage', 'collision damage'],
+      rust: ['rust', 'corrosion', 'oxidation', 'rust spots', 'rust damage'],
+      cracks: ['crack', 'cracks', 'broken', 'damaged', 'fracture', 'split'],
+      paint: ['paint fade', 'paint peeling', 'paint bubble', 'paint oxidation', 'clear coat damage'],
+      glass: ['windshield crack', 'window damage', 'glass chip', 'glass crack'],
+      mechanical: ['leak', 'fluid leak', 'engine damage', 'mechanical damage'],
+      other: ['damage', 'repair', 'accident', 'collision', 'wear', 'deterioration']
+    };
+
+    // Car parts for location reference
+    const carParts = {
+      front: ['bumper', 'hood', 'grille', 'headlight', 'front fender'],
+      side: ['door', 'side panel', 'mirror', 'window', 'wheel', 'tire'],
+      rear: ['trunk', 'taillight', 'rear bumper', 'exhaust', 'back'],
+      top: ['roof', 'sunroof', 'windshield', 'antenna']
+    };
+
+    const detectedIssues = [];
+    let damageScore = 0;
+
+    // Process objects with enhanced logging
+    objects.forEach(object => {
+      const objectName = object.name.toLowerCase();
+      console.log(`Processing object: ${objectName} (confidence: ${object.score})`);
+
+      // Check for damage indicators
+      for (const [type, indicators] of Object.entries(damageIndicators)) {
+        if (indicators.some(indicator => objectName.includes(indicator))) {
+          const confidence = object.score * 100;
+          const severity = confidence > 80 ? 'High' : confidence > 50 ? 'Medium' : 'Low';
+          
+          // Determine location based on car parts
+          let location = object.name;
+          for (const [area, parts] of Object.entries(carParts)) {
+            if (parts.some(part => objectName.includes(part))) {
+              location = `${area} ${object.name}`;
+              break;
+            }
+          }
+
+          detectedIssues.push({
+            type: type.charAt(0).toUpperCase() + type.slice(1),
+            confidence: confidence.toFixed(2),
+            severity,
+            location,
+            boundingPoly: object.boundingPoly
+          });
+
+          damageScore += confidence * (severity === 'High' ? 1 : severity === 'Medium' ? 0.7 : 0.4);
+        }
+      }
+    });
+
+    // Process labels for additional context
+    labels.forEach(label => {
+      const labelName = label.description.toLowerCase();
+      console.log(`Processing label: ${labelName} (confidence: ${label.score})`);
+
+      for (const [type, indicators] of Object.entries(damageIndicators)) {
+        if (indicators.some(indicator => labelName.includes(indicator))) {
+          const confidence = label.score * 100;
+          if (!detectedIssues.some(issue => issue.type.toLowerCase() === type)) {
+            detectedIssues.push({
+              type: type.charAt(0).toUpperCase() + type.slice(1),
+              confidence: confidence.toFixed(2),
+              severity: confidence > 80 ? 'High' : confidence > 50 ? 'Medium' : 'Low',
+              location: 'Various',
+              context: 'Detected through image analysis'
+            });
+          }
+        }
+      }
+    });
+
+    // Process web entities for additional context
+    webEntities.forEach(entity => {
+      const entityName = entity.description?.toLowerCase() || '';
+      console.log(`Processing web entity: ${entityName} (score: ${entity.score})`);
+    });
+
+    // Normalize damage score to 0-100 range
+    damageScore = Math.min(100, damageScore);
+
+    // Enhanced condition assessment
+    let overallCondition;
+    if (damageScore < 10) {
+      overallCondition = 'Excellent - Like New';
+    } else if (damageScore < 30) {
+      overallCondition = 'Very Good - Minor Wear';
+    } else if (damageScore < 50) {
+      overallCondition = 'Good - Normal Wear';
+    } else if (damageScore < 70) {
+      overallCondition = 'Fair - Some Damage';
+    } else if (damageScore < 90) {
+      overallCondition = 'Poor - Significant Damage';
+    } else {
+      overallCondition = 'Severe - Major Damage';
+    }
+
+    // Generate detailed recommended actions
+    const recommendedActions = [];
+    if (detectedIssues.length > 0) {
+      const highPriorityIssues = detectedIssues.filter(issue => issue.severity === 'High');
+      const mediumPriorityIssues = detectedIssues.filter(issue => issue.severity === 'Medium');
+      
+      highPriorityIssues.forEach(issue => {
+        recommendedActions.push(`URGENT: Repair ${issue.type.toLowerCase()} on ${issue.location}`);
+      });
+      
+      mediumPriorityIssues.forEach(issue => {
+        recommendedActions.push(`Schedule repair for ${issue.type.toLowerCase()} on ${issue.location}`);
+      });
+
+      if (damageScore > 50) {
+        recommendedActions.push('Recommend professional inspection for comprehensive damage assessment');
+      }
+    } else {
+      recommendedActions.push('Vehicle appears to be in good condition. Regular maintenance recommended.');
+      recommendedActions.push('Consider periodic inspections to maintain vehicle condition.');
+    }
+
+    const result = {
+      damageScore: damageScore.toFixed(2),
+      detectedIssues,
+      overallCondition,
+      recommendedActions,
+      analysisDetails: {
+        objectsDetected: objects.length,
+        labelsDetected: labels.length,
+        webEntities: webEntities.length,
+        detectedObjects: objects.map(obj => ({
+          name: obj.name,
+          confidence: (obj.score * 100).toFixed(2)
+        })),
+        detectedLabels: labels.map(label => ({
+          description: label.description,
+          confidence: (label.score * 100).toFixed(2)
+        }))
+      }
+    };
+
+    console.log('Analysis result:', JSON.stringify(result, null, 2));
+    return result;
+  } catch (error) {
+    console.error('Error analyzing car image:', error);
+    throw error;
+  }
+}
+
+// POST route to analyze car image for damage detection
+router.post("/cars/analyze-image", async (req, res) => {
+  try {
+    const { imageUrl } = req.body;
+    
+    if (!imageUrl) {
+      return res.status(400).json({ error: "Image URL is required" });
+    }
+
+    // Analyze the image using Google Cloud Vision API
+    const analysisResults = await analyzeCarImage(imageUrl);
+
+    res.status(200).json(analysisResults);
+  } catch (error) {
+    console.error("Error analyzing image:", error);
+    res.status(500).json({ 
+      error: "Failed to analyze image", 
+      message: error.message,
+      details: error.stack 
+    });
   }
 });
 

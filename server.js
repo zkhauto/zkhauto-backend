@@ -11,6 +11,7 @@ import userRoutes from './routes/userRoutes.js';
 import contactRoutes from './routes/contactRoutes.js';
 import chatRoutes from './routes/chatRoutes.js';
 import bookingRoutes from './routes/bookingRoutes.js';
+import aiRoutes from './routes/aiRoutes.js';
 import connectDB from './config/db.js';
 import passport from './config/passport.js';
 import footerRoutes from './routes/footerRoutes.js';
@@ -70,9 +71,10 @@ app.use(
       ttl: 24 * 60 * 60, // Session TTL (1 day)
     }),
     cookie: {
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      secure: false, // Set to false for development
+      sameSite: "lax", // Set to lax for development
       maxAge: 24 * 60 * 60 * 1000, // Cookie TTL (1 day)
+      httpOnly: true,
     },
   })
 );
@@ -113,6 +115,9 @@ app.use("/api/chat", chatRoutes);
 
 // Mount footer routes
 app.use('/api/footer', footerRoutes);
+
+// Mount AI routes
+app.use('/api/ai', aiRoutes);
 
 // Add OPTIONS handling
 app.options('*', (req, res) => {
