@@ -389,4 +389,31 @@ router.put("/profile", async (req, res) => {
   }
 });
 
+// Update user role to admin
+router.put('/make-admin', async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    user.role = 'admin';
+    await user.save();
+    
+    res.status(200).json({ 
+      message: 'User role updated to admin successfully',
+      user: {
+        id: user._id,
+        email: user.email,
+        role: user.role
+      }
+    });
+  } catch (error) {
+    console.error('Error updating user role:', error);
+    res.status(500).json({ message: 'Error updating user role', error: error.message });
+  }
+});
+
 export default router;

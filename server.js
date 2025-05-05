@@ -6,10 +6,13 @@ import MongoStore from 'connect-mongo';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 import carRoutes from './routes/carRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import contactRoutes from './routes/contactRoutes.js';
 import chatRoutes from './routes/chatRoutes.js';
+import adminChatRoutes from './routes/adminChatRoutes.js';
 import bookingRoutes from './routes/bookingRoutes.js';
 import aiRoutes from './routes/aiRoutes.js';
 import connectDB from './config/db.js';
@@ -29,6 +32,38 @@ console.log('- MONGODB_URI:', process.env.MONGODB_URI ? 'Set' : 'Not set');
 console.log('- OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? 'Set' : 'Not set');
 
 const app = express();
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+  cors: {
+    origin: ["http://localhost:3000", "http://localhost:3001"],
+    credentials: true
+  }
+});
+
+// Store io instance in app for use in routes
+app.set('io', io);
+
+// WebSocket connection handling
+io.on('connection', (socket) => {
+  console.log('Client connected:', socket.id);
+
+  // Join user's room
+  socket.on('join', (userId) => {
+    socket.join(userId);
+    console.log(`User ${userId} joined their room`);
+  });
+
+  // Handle private messages
+  socket.on('privateMessage', async (data) => {
+    const { receiverId, message } = data;
+    // Emit to specific user's room
+    io.to(receiverId).emit('newMessage', message);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('Client disconnected:', socket.id);
+  });
+});
 
 // Connect to MongoDB
 connectDB();
@@ -113,11 +148,14 @@ app.use("/api", contactRoutes);
 // Mount chat routes
 app.use("/api/chat", chatRoutes);
 
+// Mount admin chat routes
+app.use("/api/admin-chat", adminChatRoutes);
+
 // Mount footer routes
 app.use('/api/footer', footerRoutes);
 
 // Mount AI routes
-app.use('/api/ai', aiRoutes);
+app.use("/api/ai", aiRoutes);
 
 // Add OPTIONS handling
 app.options('*', (req, res) => {
@@ -143,10 +181,11 @@ app.get('/health', (req, res) => {
 
 // Start server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🔗 Health check: http://localhost:${PORT}/health`);
   console.log(`💬 Chat endpoint: http://localhost:${PORT}/api/chat`);
+  console.log(`💬 Admin chat endpoint: http://localhost:${PORT}/api/admin-chat`);
 }).on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
     console.error(`❌ Port ${PORT} is already in use. Please free the port or use a different port.`);
@@ -155,4 +194,16 @@ app.listen(PORT, () => {
     console.error('❌ Server error:', err);
     process.exit(1);
   }
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+  process.exit(1);
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled Rejection:', err);
+  process.exit(1);
 });
